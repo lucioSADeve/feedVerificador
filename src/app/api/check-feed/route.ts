@@ -59,11 +59,11 @@ export async function POST(request: Request) {
       const matches = content.match(/<link[^>]*rel="alternate"[^>]*type="application\/(rss|atom)\+xml"[^>]*href="([^"]+)"[^>]*>/g);
       if (matches) {
         feedUrls = matches
-          .map(match => {
+          .map((match: string) => {
             const href = match.match(/href="([^"]+)"/);
             return href ? href[1] : null;
           })
-          .filter(url => url !== null) as string[];
+          .filter((url: string | null): url is string => url !== null);
       }
     }
 
