@@ -12,6 +12,42 @@ export async function POST(request: Request) {
       );
     }
 
+    // Função para verificar se uma URL é válida
+    const isValidUrl = (urlString: string): boolean => {
+      try {
+        new URL(urlString);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    // Função para normalizar URL
+    const normalizeUrl = (baseUrl: string, feedUrl: string): string => {
+      if (isValidUrl(feedUrl)) {
+        return feedUrl;
+      }
+      
+      // Remove @ do início se existir
+      feedUrl = feedUrl.replace(/^@/, '');
+      
+      try {
+        const base = new URL(baseUrl);
+        // Se a URL do feed começar com //, adiciona apenas o protocolo
+        if (feedUrl.startsWith('//')) {
+          return `${base.protocol}${feedUrl}`;
+        }
+        // Se começar com /, usa o origin como base
+        if (feedUrl.startsWith('/')) {
+          return `${base.origin}${feedUrl}`;
+        }
+        // Caso contrário, resolve relativamente à URL base
+        return new URL(feedUrl, baseUrl).toString();
+      } catch {
+        return feedUrl;
+      }
+    };
+
     const response = await axios.get(url, {
       timeout: 10000,
       headers: {
@@ -56,14 +92,28 @@ export async function POST(request: Request) {
     // Extrai URLs de feeds do HTML
     let feedUrls: string[] = [];
     if (hasRSSLink) {
-      const matches = content.match(/<link[^>]*rel="alternate"[^>]*type="application\/(rss|atom)\+xml"[^>]*href="([^"]+)"[^>]*>/g);
-      if (matches) {
-        feedUrls = matches
+      // Busca por tags link com RSS/Atom
+      const linkMatches = content.match(/<link[^>]*rel="alternate"[^>]*type="application\/(rss|atom)\+xml"[^>]*href="([^"]+)"[^>]*>/g) || [];
+      
+      // Busca por URLs em elementos <a> que parecem ser feeds
+      const aMatches = content.match(/<a[^>]*href="[^"]*\/(rss|feed|atom)[^"]*\.(xml|rss|atom)"[^>]*>/g) || [];
+      
+      // Combina e processa todas as URLs encontradas
+      const allMatches = [...linkMatches, ...aMatches];
+      
+      if (allMatches.length > 0) {
+        feedUrls = allMatches
           .map((match: string) => {
             const href = match.match(/href="([^"]+)"/);
-            return href ? href[1] : null;
+            return href ? normalizeUrl(url, href[1]) : null;
           })
-          .filter((url: string | null): url is string => url !== null);
+          .filter((url: string | null): url is string => 
+            url !== null && 
+            (url.includes('/rss') || 
+             url.includes('/feed') || 
+             url.includes('/atom') || 
+             url.endsWith('.xml'))
+          );
       }
     }
 

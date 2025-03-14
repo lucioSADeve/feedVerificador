@@ -4,13 +4,9 @@ import { useState } from 'react';
 import axios from 'axios';
 
 export default function Home() {
-  const [domains, setDomains] = useState('');
-  const [results, setResults] = useState<Array<{
-    domain: string;
-    hasFeed: boolean;
-    feedUrl?: string;
-  }>>([]);
-  const [loading, setLoading] = useState(false);
+  const [domains, setDomains] = useState<string>('');
+  const [results, setResults] = useState<{ [key: string]: any }>({});
+  const [isLoading, setIsLoading] = useState(false);
   const [viewMode, setViewMode] = useState<'detailed' | 'simple'>('detailed');
 
   const clearResults = () => {
@@ -19,24 +15,25 @@ export default function Home() {
 
   const checkFeed = async (url: string) => {
     try {
-      const response = await axios.post('/api/check-feed', { url });
-      return {
-        hasFeed: response.data.hasFeed,
-        isFeedListPage: response.data.isFeedListPage,
-        isXML: response.data.isXML
-      };
+      // Normaliza a URL antes de enviar
+      const normalizedUrl = normalizeUrl(url);
+      const response = await axios.post('/api/check-feed', { url: normalizedUrl });
+      return response.data;
     } catch (error) {
-      return {
-        hasFeed: false,
-        isFeedListPage: false,
-        isXML: false
-      };
+      console.error('Erro ao verificar feed:', error);
+      return { hasFeed: false };
     }
+  };
+
+  // Função para normalizar URLs
+  const normalizeUrl = (url: string) => {
+    // Remove @ ou // do início se existir
+    return url.replace(/^(@|\/\/)/, '');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setIsLoading(true);
     clearResults(); // Limpa resultados anteriores
 
     try {
@@ -48,31 +45,46 @@ export default function Home() {
       const cleanDomains = domainList.map(domain => domain.replace(/^https?:\/\//, ''));
       
       const feedPaths = [
+        // Caminhos diretos
         '/rss',
         '/feed',
         '/feed/',
-        '/feed/rss',
-        '/feed.xml',
+        '/rss/',
         '/rss.xml',
+        '/feed.xml',
         '/atom.xml',
-        '/feed/atom',
-        '/feed/rss',
-        '/paginas/rss-2',
-        '/rss-2',
-        '/rss2',
-        '/feed/rss2',
-        '/feed/rss-2',
-        '/rss/feed',
-        '/feed/rss/feed',
-        '/rss/feed.xml',
-        '/feed/rss.xml',
         '/index.xml',
+        
+        // Caminhos com prefixo @
+        '@/rss',
+        '@/feed',
         '@/feed/',
         '@/rss/',
         '@/rss.xml',
         '@/feed.xml',
         '@/atom.xml',
-        '@/index.xml'
+        '@/index.xml',
+        
+        // Caminhos com prefixo //
+        '//rss',
+        '//feed',
+        '//feed/',
+        '//rss/',
+        '//rss.xml',
+        '//feed.xml',
+        
+        // Caminhos específicos
+        '/feed/rss',
+        '/rss/feed',
+        '/feed/atom',
+        '/paginas/rss-2',
+        '/rss-2',
+        '/rss2',
+        '/feed/rss2',
+        '/feed/rss-2',
+        '/feed/rss/feed',
+        '/rss/feed.xml',
+        '/feed/rss.xml'
       ];
 
       const allResults = await Promise.all(
@@ -122,7 +134,7 @@ export default function Home() {
     } catch (error) {
       console.error('Erro ao verificar feeds:', error);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
       setDomains('');
     }
   };
@@ -160,10 +172,10 @@ export default function Home() {
               <div className="flex gap-4">
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={isLoading}
                   className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
                 >
-                  {loading ? 'Verificando...' : 'Verificar'}
+                  {isLoading ? 'Verificando...' : 'Verificar'}
                 </button>
                 {results.length > 0 && (
                   <button
